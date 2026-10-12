@@ -72,7 +72,7 @@ class OrderStatusUpdate(Schema):
 class ReviewCreate(Schema):
     user_id: int = Field(gt=0)
     rating: int = Field(ge=1, le=5)
-    comment: str = None
+    comment: str | None = Field(default=None, max_length=2000)
 
 
 class FavoriteCreate(Schema):
