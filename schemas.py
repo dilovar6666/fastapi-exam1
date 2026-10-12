@@ -25,13 +25,13 @@ class UserUpdate(Schema):
 
 
 class CategoryCreate(Schema):
-    name: str
-    description: str = None
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class CategoryUpdate(Schema):
-    name: str = None
-    description: str = None
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class ProductCreate(Schema):
