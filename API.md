@@ -66,3 +66,7 @@ is calculated from those items, stock is decreased, and the cart is cleared.
 `descending`, `skip`, and `limit`. Individual orders are available at
 `GET /orders/{order_id}`; `/orders/new/`, `/orders/paid/`, and
 `/orders/cancelled/` return the corresponding status lists.
+
+Change an order with `PATCH /orders/{order_id}/status/` using `new`, `paid`,
+or `cancelled`, or call `POST /orders/{order_id}/cancel/`. Cancellation
+restores every ordered quantity to product stock and cannot be reversed.
