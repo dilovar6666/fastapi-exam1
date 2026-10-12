@@ -1,7 +1,6 @@
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from crud import (
@@ -138,16 +137,17 @@ def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
 @app.get("/users/{user_id}/purchases/products/{product_id}")
 def read_purchased_product_count(user_id: int, product_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    quantity = (
-        db.query(func.coalesce(func.sum(OrderItem.quantity), 0))
+    items = (
+        db.query(OrderItem)
         .join(Order, Order.id == OrderItem.order_id)
         .filter(
             Order.user_id == user_id,
             Order.status != "cancelled",
             OrderItem.product_id == product_id,
         )
-        .scalar()
+        .all()
     )
+    quantity = sum(item.quantity for item in items)
     return {"user_id": user_id, "product_id": product_id, "purchased_quantity": quantity}
 
 
@@ -518,34 +518,31 @@ def read_statistics(db: Session = Depends(get_db)):
     users_cnt = db.query(User).count()
     products_cnt = db.query(Product).count()
     categories_cnt = db.query(Category).count()
-    orders_stat = (
-        db.query(
-            func.count(Order.id),
-            func.coalesce(func.sum(Order.total_amount), 0),
-            func.coalesce(func.avg(Order.total_amount), 0),
-        )
-        .filter(Order.status != "cancelled")
-        .first()
-    )
-    orders_cnt, total_amount, avg_amount = orders_stat
+    orders = db.query(Order).filter(Order.status != "cancelled").all()
+    orders_cnt = len(orders)
+    total_amount = sum(order.total_amount for order in orders)
+    average_amount = total_amount / orders_cnt if orders_cnt else 0
 
-    most_sold = (
-        db.query(Product, func.sum(OrderItem.quantity))
-        .join(OrderItem, Product.id == OrderItem.product_id)
-        .join(Order, Order.id == OrderItem.order_id)
-        .filter(Order.status != "cancelled")
-        .group_by(Product.id)
-        .order_by(func.sum(OrderItem.quantity).desc())
-        .first()
-    )
-    best_customer = (
-        db.query(User, func.sum(Order.total_amount))
-        .join(Order, User.id == Order.user_id)
-        .filter(Order.status != "cancelled")
-        .group_by(User.id)
-        .order_by(func.sum(Order.total_amount).desc())
-        .first()
-    )
+    product_quantities = {}
+    customer_totals = {}
+    for order in orders:
+        customer_totals[order.user_id] = customer_totals.get(order.user_id, 0) + order.total_amount
+        for item in order.items:
+            product_quantities[item.product_id] = product_quantities.get(item.product_id, 0) + item.quantity
+
+    most_sold_product = None
+    most_sold_quantity = 0
+    for product_id, quantity in product_quantities.items():
+        if quantity > most_sold_quantity:
+            most_sold_product = get_product(db, product_id)
+            most_sold_quantity = quantity
+
+    best_customer = None
+    best_customer_total = 0
+    for user_id, amount in customer_totals.items():
+        if amount > best_customer_total:
+            best_customer = get_user(db, user_id)
+            best_customer_total = amount
 
     return {
         "users_count": users_cnt,
@@ -553,14 +550,14 @@ def read_statistics(db: Session = Depends(get_db)):
         "categories_count": categories_cnt,
         "orders_count": orders_cnt,
         "total_orders_amount": total_amount,
-        "average_order_amount": float(avg_amount),
-        "most_sold_product": ProductResponse.model_validate(most_sold[0]) if most_sold else None,
-        "most_sold_quantity": most_sold[1] if most_sold else 0,
+        "average_order_amount": average_amount,
+        "most_sold_product": ProductResponse.model_validate(most_sold_product) if most_sold_product else None,
+        "most_sold_quantity": most_sold_quantity,
         "most_expensive_product": ProductResponse.model_validate(db.query(Product).order_by(Product.price.desc()).first()) if products_cnt else None,
         "cheapest_product": ProductResponse.model_validate(db.query(Product).order_by(Product.price.asc()).first()) if products_cnt else None,
         "low_stock_products": [
             ProductResponse.model_validate(product)
             for product in db.query(Product).filter(Product.stock < 5).order_by(Product.stock).all()
         ],
-        "best_customer": {"id": best_customer[0].id, "name": best_customer[0].name, "total_amount": best_customer[1]} if best_customer else None,
+        "best_customer": {"id": best_customer.id, "name": best_customer.name, "total_amount": best_customer_total} if best_customer else None,
     }
