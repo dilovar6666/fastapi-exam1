@@ -21,3 +21,10 @@ User-specific related data is available through:
 - `GET /users/{user_id}/purchases/`
 - `GET /users/{user_id}/purchases/products/{product_id}`
 - `GET /users/{user_id}/statistics/`
+
+## Categories
+
+- `POST /categories/` creates a named category with an optional description.
+- `GET /categories/` supports `search` and `sort_by_name`.
+- `GET`, `PUT`, and `DELETE /categories/{category_id}` manage one category.
+- `GET /categories/{category_id}/products/` lists the category catalogue.
