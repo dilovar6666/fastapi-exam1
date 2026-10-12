@@ -39,3 +39,8 @@ User-specific related data is available through:
 `GET /products/` accepts `search`, `category_id`, `min_price`, `max_price`,
 `in_stock`, `sort_by`, `descending`, `skip`, and `limit`. Sorting fields are
 `price`, `name`, and `stock`; pagination starts at `skip=0`.
+
+Catalogue selections are available at `/products/cheap/`,
+`/products/expensive/`, `/products/out-of-stock/`, `/products/low-stock/`,
+`/products/high-rating/`, `/products/low-rating/`, and
+`/products/{product_id}/similar/`.
