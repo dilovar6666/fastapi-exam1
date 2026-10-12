@@ -18,7 +18,8 @@ from model import CartItem, Category, Order, OrderItem, Product, User
 from schemas import (
     CartItemCreate, CartItemUpdate, CategoryCreate, CategoryUpdate,
     FavoriteCreate, OrderCreate, OrderStatusUpdate, ProductCreate,
-    ProductUpdate, ReviewCreate, UserCreate, UserUpdate,
+    ProductResponse, ProductUpdate, ReviewCreate, ReviewResponse, UserCreate,
+    UserResponse, UserUpdate, CategoryResponse,
 )
 
 
@@ -27,23 +28,12 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Online Store")
 
 
-def product_data(product):
-    return {
-        "id": product.id,
-        "name": product.name,
-        "description": product.description,
-        "price": product.price,
-        "stock": product.stock,
-        "category_id": product.category_id,
-    }
-
-
 def order_data(order):
     items = []
     for item in order.items:
         product = None
         if item.product:
-            product = product_data(item.product)
+            product = ProductResponse.model_validate(item.product)
         items.append(
             {
                 "id": item.id,
@@ -76,7 +66,7 @@ def cart_data(db: Session, user_id: int):
                 "product_id": item.product_id,
                 "quantity": item.quantity,
                 "subtotal": subtotal,
-                "product": product_data(item.product),
+                "product": ProductResponse.model_validate(item.product),
             }
         )
     return {"user_id": user_id, "items": items, "total_amount": total_amount}
@@ -103,7 +93,7 @@ def get_purchased_products(orders):
                 products.append(
                     {
                         "product_id": item.product_id,
-                        "product": product_data(item.product),
+                        "product": ProductResponse.model_validate(item.product),
                         "quantity": item.quantity,
                     }
                 )
@@ -193,24 +183,24 @@ def get_existing_order(db: Session, order_id: int):
     return order
 
 
-@app.post("/users/", status_code=status.HTTP_201_CREATED)
+@app.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user_endpoint(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email is already used")
     return create_user(db, user)
 
 
-@app.get("/users/")
+@app.get("/users/", response_model=list[UserResponse])
 def read_users(db: Session = Depends(get_db)):
     return get_users(db)
 
 
-@app.get("/users/{user_id}")
+@app.get("/users/{user_id}", response_model=UserResponse)
 def read_user(user_id: int, db: Session = Depends(get_db)):
     return get_existing_user(db, user_id)
 
 
-@app.put("/users/{user_id}")
+@app.put("/users/{user_id}", response_model=UserResponse)
 def update_user_endpoint(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
     db_user = get_existing_user(db, user_id)
     if user.email and user.email != db_user.email:
@@ -276,14 +266,14 @@ def read_user_statistics(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-@app.post("/categories/", status_code=status.HTTP_201_CREATED)
+@app.post("/categories/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 def create_category_endpoint(category: CategoryCreate, db: Session = Depends(get_db)):
     if db.query(Category).filter(Category.name == category.name).first():
         raise HTTPException(status_code=400, detail="Category name is already used")
     return create_category(db, category)
 
 
-@app.get("/categories/")
+@app.get("/categories/", response_model=list[CategoryResponse])
 def read_categories(
     search: str = None,
     sort_by_name: bool = False,
@@ -292,12 +282,12 @@ def read_categories(
     return get_categories(db, search, sort_by_name)
 
 
-@app.get("/categories/{category_id}")
+@app.get("/categories/{category_id}", response_model=CategoryResponse)
 def read_category(category_id: int, db: Session = Depends(get_db)):
     return get_existing_category(db, category_id)
 
 
-@app.put("/categories/{category_id}")
+@app.put("/categories/{category_id}", response_model=CategoryResponse)
 def update_category_endpoint(category_id: int, category: CategoryUpdate, db: Session = Depends(get_db)):
     db_category = get_existing_category(db, category_id)
     if category.name and category.name != db_category.name:
@@ -321,13 +311,13 @@ def read_category_products(category_id: int, db: Session = Depends(get_db)):
     return get_products(db, category_id=category_id, limit=100)
 
 
-@app.post("/products/", status_code=status.HTTP_201_CREATED)
+@app.post("/products/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 def create_product_endpoint(product: ProductCreate, db: Session = Depends(get_db)):
     get_existing_category(db, product.category_id)
     return create_product(db, product)
 
 
-@app.get("/products/")
+@app.get("/products/", response_model=list[ProductResponse])
 def read_products(
     search: str = None,
     category_id: int = None,
@@ -376,7 +366,7 @@ def read_high_rating_products(db: Session = Depends(get_db)):
     for product in products:
         average_rating = get_product_average_rating(db, product.id)
         if average_rating >= 4:
-            high_rating_products.append({"product": product_data(product), "average_rating": average_rating})
+            high_rating_products.append({"product": ProductResponse.model_validate(product), "average_rating": average_rating})
     return high_rating_products
 
 
@@ -389,16 +379,16 @@ def read_low_rating_products(db: Session = Depends(get_db)):
         if reviews:
             average_rating = get_product_average_rating(db, product.id)
             if average_rating <= 2:
-                low_rating_products.append({"product": product_data(product), "average_rating": average_rating})
+                low_rating_products.append({"product": ProductResponse.model_validate(product), "average_rating": average_rating})
     return low_rating_products
 
 
-@app.get("/products/{product_id}")
+@app.get("/products/{product_id}", response_model=ProductResponse)
 def read_product(product_id: int, db: Session = Depends(get_db)):
     return get_existing_product(db, product_id)
 
 
-@app.put("/products/{product_id}")
+@app.put("/products/{product_id}", response_model=ProductResponse)
 def update_product_endpoint(product_id: int, product: ProductUpdate, db: Session = Depends(get_db)):
     db_product = get_existing_product(db, product_id)
     if product.category_id is not None:
@@ -603,7 +593,7 @@ def create_favorite_endpoint(favorite: FavoriteCreate, db: Session = Depends(get
 @app.get("/favorites/")
 def read_favorites(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return [product_data(favorite.product) for favorite in get_favorites(db, user_id)]
+    return [ProductResponse.model_validate(favorite.product) for favorite in get_favorites(db, user_id)]
 
 
 @app.get("/favorites/{user_id}/{product_id}")
@@ -647,10 +637,10 @@ def read_statistics(db: Session = Depends(get_db)):
         "orders_count": len(orders),
         "total_orders_amount": total_orders_amount,
         "average_order_amount": average_order_amount,
-        "most_sold_product": product_data(most_sold_product) if most_sold_product else None,
+        "most_sold_product": ProductResponse.model_validate(most_sold_product) if most_sold_product else None,
         "most_sold_quantity": most_sold_quantity,
-        "most_expensive_product": product_data(most_expensive_product) if most_expensive_product else None,
-        "cheapest_product": product_data(cheapest_product) if cheapest_product else None,
-        "low_stock_products": [product_data(product) for product in low_stock_products],
+        "most_expensive_product": ProductResponse.model_validate(most_expensive_product) if most_expensive_product else None,
+        "cheapest_product": ProductResponse.model_validate(cheapest_product) if cheapest_product else None,
+        "low_stock_products": [ProductResponse.model_validate(product) for product in low_stock_products],
         "best_customer": {"id": best_customer.id, "name": best_customer.name, "total_amount": best_total_amount} if best_customer else None,
     }

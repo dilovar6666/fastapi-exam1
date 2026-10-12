@@ -85,3 +85,32 @@ class ReviewCreate(Schema):
 class FavoriteCreate(Schema):
     user_id: int = Field(gt=0)
     product_id: int = Field(gt=0)
+
+
+class UserResponse(Schema):
+    id: int
+    name: str
+    email: str
+
+
+class CategoryResponse(Schema):
+    id: int
+    name: str
+    description: str | None
+
+
+class ProductResponse(Schema):
+    id: int
+    name: str
+    description: str | None
+    price: float
+    stock: int
+    category_id: int
+
+
+class ReviewResponse(Schema):
+    id: int
+    user_id: int
+    product_id: int
+    rating: int
+    comment: str | None
