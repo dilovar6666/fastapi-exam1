@@ -6,13 +6,22 @@ class Schema(BaseModel):
 
 
 class UserCreate(Schema):
-    name: str
-    email: str
+    name: str = Field(min_length=1, max_length=100)
+    email: str = Field(
+        min_length=5,
+        max_length=255,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
 
 
 class UserUpdate(Schema):
-    name: str = None
-    email: str = None
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    email: str | None = Field(
+        default=None,
+        min_length=5,
+        max_length=255,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
 
 
 class CategoryCreate(Schema):
