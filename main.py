@@ -601,8 +601,6 @@ def read_statistics(db: Session = Depends(get_db)):
         best_customer = db.query(User).filter(User.id == user_id).first()
         best_customer_total = customer_totals[user_id]
 
-    to_pydantic = lambda obj: ProductResponse.model_validate(obj) if obj else None
-
     return {
         "users_count": users_cnt,
         "products_count": products_cnt,
@@ -610,10 +608,10 @@ def read_statistics(db: Session = Depends(get_db)):
         "orders_count": orders_cnt,
         "total_orders_amount": total_amount,
         "average_order_amount": float(avg_amount),
-        "most_sold_product": to_pydantic(most_sold_product),
+        "most_sold_product": ProductResponse.model_validate(most_sold_product) if most_sold_product else None,
         "most_sold_quantity": most_sold_quantity,
-        "most_expensive_product": to_pydantic(db.query(Product).order_by(Product.price.desc()).first()),
-        "cheapest_product": to_pydantic(db.query(Product).order_by(Product.price.asc()).first()),
+        "most_expensive_product": ProductResponse.model_validate(db.query(Product).order_by(Product.price.desc()).first()) if products_cnt else None,
+        "cheapest_product": ProductResponse.model_validate(db.query(Product).order_by(Product.price.asc()).first()) if products_cnt else None,
         "low_stock_products": [
             ProductResponse.model_validate(product)
             for product in db.query(Product).filter(Product.stock < 5).order_by(Product.stock).all()
