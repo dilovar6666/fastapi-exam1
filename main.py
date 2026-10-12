@@ -57,24 +57,24 @@ def get_existing_order(db: Session, order_id: int):
     return order
 
 
-@app.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Users"])
 def create_user_endpoint(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email is already used")
     return create_user(db, user)
 
 
-@app.get("/users/", response_model=list[UserResponse])
+@app.get("/users/", response_model=list[UserResponse], tags=["Users"])
 def read_users(db: Session = Depends(get_db)):
     return get_users(db)
 
 
-@app.get("/users/{user_id}", response_model=UserResponse)
+@app.get("/users/{user_id}", response_model=UserResponse, tags=["Users"])
 def read_user(user_id: int, db: Session = Depends(get_db)):
     return get_existing_user(db, user_id)
 
 
-@app.put("/users/{user_id}", response_model=UserResponse)
+@app.put("/users/{user_id}", response_model=UserResponse, tags=["Users"])
 def update_user_endpoint(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
     db_user = get_existing_user(db, user_id)
     if user.email and user.email != db_user.email:
@@ -83,14 +83,14 @@ def update_user_endpoint(user_id: int, user: UserUpdate, db: Session = Depends(g
     return update_user(db, db_user, user)
 
 
-@app.delete("/users/{user_id}")
+@app.delete("/users/{user_id}", tags=["Users"])
 def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
     user = get_existing_user(db, user_id)
     delete_user(db, user)
     return {"message": "User deleted"}
 
 
-@app.get("/users/{user_id}/cart/", response_model=CartResponse)
+@app.get("/users/{user_id}/cart/", response_model=CartResponse, tags=["Cart"])
 def read_user_cart(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     items = get_cart_items(db, user_id)
@@ -101,22 +101,24 @@ def read_user_cart(user_id: int, db: Session = Depends(get_db)):
     )
 
 
-@app.get("/users/{user_id}/orders/", response_model=list[OrderResponse])
+@app.get("/users/{user_id}/orders/", response_model=list[OrderResponse], tags=["Orders"])
 def read_user_orders(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     return get_user_orders(db, user_id)
 
 
-@app.get("/users/{user_id}/purchases/")
+@app.get("/users/{user_id}/purchases/", tags=["Purchase History"])
 def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     orders = get_user_orders(db, user_id)
     successful_orders = [order for order in orders if order.status != "cancelled"]
     last_order = orders[0] if orders else None
     expensive_order = None
+
     for order in successful_orders:
         if expensive_order is None or order.total_amount > expensive_order.total_amount:
             expensive_order = order
+
     return {
         "orders": [OrderResponse.model_validate(order) for order in orders],
         "last_order": OrderResponse.model_validate(last_order) if last_order else None,
@@ -134,24 +136,15 @@ def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-@app.get("/users/{user_id}/purchases/products/{product_id}")
+@app.get("/users/{user_id}/purchases/products/{product_id}", tags=["Purchase History"])
 def read_purchased_product_count(user_id: int, product_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    items = (
-        db.query(OrderItem)
-        .join(Order, Order.id == OrderItem.order_id)
-        .filter(
-            Order.user_id == user_id,
-            Order.status != "cancelled",
-            OrderItem.product_id == product_id,
-        )
-        .all()
-    )
+    items = (db.query(OrderItem).join(Order, Order.id == OrderItem.order_id).filter(Order.user_id == user_id,Order.status != "cancelled",OrderItem.product_id == product_id,).all())
     quantity = sum(item.quantity for item in items)
     return {"user_id": user_id, "product_id": product_id, "purchased_quantity": quantity}
 
 
-@app.get("/users/{user_id}/statistics/")
+@app.get("/users/{user_id}/statistics/", tags=["Statistics"])
 def read_user_statistics(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     orders = db.query(Order).filter(Order.user_id == user_id, Order.status != "cancelled").all()
@@ -164,14 +157,14 @@ def read_user_statistics(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-@app.post("/categories/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/categories/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED, tags=["Categories"])
 def create_category_endpoint(category: CategoryCreate, db: Session = Depends(get_db)):
     if db.query(Category).filter(Category.name == category.name).first():
         raise HTTPException(status_code=400, detail="Category name is already used")
     return create_category(db, category)
 
 
-@app.get("/categories/", response_model=list[CategoryResponse])
+@app.get("/categories/", response_model=list[CategoryResponse], tags=["Categories"])
 def read_categories(
     search: str = None,
     sort_by_name: bool = False,
@@ -180,12 +173,12 @@ def read_categories(
     return get_categories(db, search, sort_by_name)
 
 
-@app.get("/categories/{category_id}", response_model=CategoryResponse)
+@app.get("/categories/{category_id}", response_model=CategoryResponse, tags=["Categories"])
 def read_category(category_id: int, db: Session = Depends(get_db)):
     return get_existing_category(db, category_id)
 
 
-@app.put("/categories/{category_id}", response_model=CategoryResponse)
+@app.put("/categories/{category_id}", response_model=CategoryResponse, tags=["Categories"])
 def update_category_endpoint(category_id: int, category: CategoryUpdate, db: Session = Depends(get_db)):
     db_category = get_existing_category(db, category_id)
     if category.name and category.name != db_category.name:
@@ -194,7 +187,7 @@ def update_category_endpoint(category_id: int, category: CategoryUpdate, db: Ses
     return update_category(db, db_category, category)
 
 
-@app.delete("/categories/{category_id}")
+@app.delete("/categories/{category_id}", tags=["Categories"])
 def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
     category = get_existing_category(db, category_id)
     if db.query(Product).filter(Product.category_id == category_id).first():
@@ -203,19 +196,19 @@ def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
     return {"message": "Category deleted"}
 
 
-@app.get("/categories/{category_id}/products/")
+@app.get("/categories/{category_id}/products/", tags=["Categories"])
 def read_category_products(category_id: int, db: Session = Depends(get_db)):
     get_existing_category(db, category_id)
     return get_products(db, category_id=category_id, limit=100)
 
 
-@app.post("/products/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/products/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, tags=["Products"])
 def create_product_endpoint(product: ProductCreate, db: Session = Depends(get_db)):
     get_existing_category(db, product.category_id)
     return create_product(db, product)
 
 
-@app.get("/products/", response_model=list[ProductResponse])
+@app.get("/products/", response_model=list[ProductResponse], tags=["Products"])
 def read_products(
     search: str = None,
     category_id: int = None,
@@ -237,27 +230,27 @@ def read_products(
     return get_products(db, search, category_id, min_price, max_price, in_stock, sort_by, descending, skip, limit)
 
 
-@app.get("/products/cheap/")
+@app.get("/products/cheap/", tags=["Products"])
 def read_cheap_products(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)):
     return get_products(db, sort_by="price", limit=limit)
 
 
-@app.get("/products/expensive/")
+@app.get("/products/expensive/", tags=["Products"])
 def read_expensive_products(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)):
     return get_products(db, sort_by="price", descending=True, limit=limit)
 
 
-@app.get("/products/out-of-stock/")
+@app.get("/products/out-of-stock/", tags=["Products"])
 def read_out_of_stock_products(db: Session = Depends(get_db)):
     return get_products(db, in_stock=False, limit=100)
 
 
-@app.get("/products/low-stock/")
+@app.get("/products/low-stock/", tags=["Products"])
 def read_low_stock_products(db: Session = Depends(get_db)):
     return db.query(Product).filter(Product.stock < 5).order_by(Product.stock).all()
 
 
-@app.get("/products/high-rating/")
+@app.get("/products/high-rating/", tags=["Products"])
 def read_high_rating_products(db: Session = Depends(get_db)):
     products = db.query(Product).all()
     high_rating_products = []
@@ -268,7 +261,7 @@ def read_high_rating_products(db: Session = Depends(get_db)):
     return high_rating_products
 
 
-@app.get("/products/low-rating/")
+@app.get("/products/low-rating/", tags=["Products"])
 def read_low_rating_products(db: Session = Depends(get_db)):
     products = db.query(Product).all()
     low_rating_products = []
@@ -281,12 +274,12 @@ def read_low_rating_products(db: Session = Depends(get_db)):
     return low_rating_products
 
 
-@app.get("/products/{product_id}", response_model=ProductResponse)
+@app.get("/products/{product_id}", response_model=ProductResponse, tags=["Products"])
 def read_product(product_id: int, db: Session = Depends(get_db)):
     return get_existing_product(db, product_id)
 
 
-@app.put("/products/{product_id}", response_model=ProductResponse)
+@app.put("/products/{product_id}", response_model=ProductResponse, tags=["Products"])
 def update_product_endpoint(product_id: int, product: ProductUpdate, db: Session = Depends(get_db)):
     db_product = get_existing_product(db, product_id)
     if product.category_id is not None:
@@ -294,7 +287,7 @@ def update_product_endpoint(product_id: int, product: ProductUpdate, db: Session
     return update_product(db, db_product, product)
 
 
-@app.delete("/products/{product_id}")
+@app.delete("/products/{product_id}", tags=["Products"])
 def delete_product_endpoint(product_id: int, db: Session = Depends(get_db)):
     product = get_existing_product(db, product_id)
     order_item = (
@@ -308,7 +301,7 @@ def delete_product_endpoint(product_id: int, db: Session = Depends(get_db)):
     return {"message": "Product deleted"}
 
 
-@app.get("/products/{product_id}/similar/")
+@app.get("/products/{product_id}/similar/", tags=["Products"])
 def read_similar_products(product_id: int, db: Session = Depends(get_db)):
     product = get_existing_product(db, product_id)
     return (
@@ -320,7 +313,7 @@ def read_similar_products(product_id: int, db: Session = Depends(get_db)):
     )
 
 
-@app.post("/cart/add/", status_code=status.HTTP_201_CREATED)
+@app.post("/cart/add/", status_code=status.HTTP_201_CREATED, tags=["Cart"])
 def add_to_cart_endpoint(item: CartItemCreate, db: Session = Depends(get_db)):
     get_existing_user(db, item.user_id)
     product = get_existing_product(db, item.product_id)
@@ -337,7 +330,7 @@ def add_to_cart_endpoint(item: CartItemCreate, db: Session = Depends(get_db)):
     return add_to_cart(db, item.user_id, product, item.quantity)
 
 
-@app.get("/cart/{user_id}", response_model=CartResponse)
+@app.get("/cart/{user_id}", response_model=CartResponse, tags=["Cart"])
 def read_cart(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     items = get_cart_items(db, user_id)
@@ -348,14 +341,14 @@ def read_cart(user_id: int, db: Session = Depends(get_db)):
     )
 
 
-@app.get("/cart/{user_id}/total/")
+@app.get("/cart/{user_id}/total/", tags=["Cart"])
 def read_cart_total(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     items = get_cart_items(db, user_id)
     return {"user_id": user_id, "total_amount": sum(item.subtotal for item in items)}
 
 
-@app.patch("/cart/items/{cart_item_id}")
+@app.patch("/cart/items/{cart_item_id}", tags=["Cart"])
 def update_cart_item_endpoint(cart_item_id: int, item: CartItemUpdate, db: Session = Depends(get_db)):
     cart_item = get_cart_item(db, cart_item_id)
     if not cart_item:
@@ -374,7 +367,7 @@ def update_cart_item_endpoint(cart_item_id: int, item: CartItemUpdate, db: Sessi
     return updated_item
 
 
-@app.delete("/cart/items/{cart_item_id}")
+@app.delete("/cart/items/{cart_item_id}", tags=["Cart"])
 def delete_cart_item_endpoint(cart_item_id: int, db: Session = Depends(get_db)):
     cart_item = get_cart_item(db, cart_item_id)
     if not cart_item:
@@ -383,14 +376,14 @@ def delete_cart_item_endpoint(cart_item_id: int, db: Session = Depends(get_db)):
     return {"message": "Cart item deleted"}
 
 
-@app.delete("/cart/clear/{user_id}")
+@app.delete("/cart/clear/{user_id}", tags=["Cart"])
 def clear_cart_endpoint(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     clear_cart(db, user_id)
     return {"message": "Cart cleared"}
 
 
-@app.post("/orders/create/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/orders/create/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED, tags=["Orders"])
 def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     get_existing_user(db, order.user_id)
     new_order, error = create_order_from_cart(db, order.user_id)
@@ -399,7 +392,7 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     return get_order(db, new_order.id)
 
 
-@app.get("/orders/", response_model=list[OrderResponse])
+@app.get("/orders/", response_model=list[OrderResponse], tags=["Orders"])
 def read_orders(
     status: Literal["new", "paid", "cancelled"] | None = None,
     sort_by: str = "date",
@@ -413,27 +406,27 @@ def read_orders(
     return get_orders(db, status, sort_by, descending, skip, limit)
 
 
-@app.get("/orders/new/", response_model=list[OrderResponse])
+@app.get("/orders/new/", response_model=list[OrderResponse], tags=["Orders"])
 def read_new_orders(db: Session = Depends(get_db)):
     return get_orders(db, status="new")
 
 
-@app.get("/orders/paid/", response_model=list[OrderResponse])
+@app.get("/orders/paid/", response_model=list[OrderResponse], tags=["Orders"])
 def read_paid_orders(db: Session = Depends(get_db)):
     return get_orders(db, status="paid")
 
 
-@app.get("/orders/cancelled/", response_model=list[OrderResponse])
+@app.get("/orders/cancelled/", response_model=list[OrderResponse], tags=["Orders"])
 def read_cancelled_orders(db: Session = Depends(get_db)):
     return get_orders(db, status="cancelled")
 
 
-@app.get("/orders/{order_id}", response_model=OrderResponse)
+@app.get("/orders/{order_id}", response_model=OrderResponse, tags=["Orders"])
 def read_order(order_id: int, db: Session = Depends(get_db)):
     return get_existing_order(db, order_id)
 
 
-@app.patch("/orders/{order_id}/status/", response_model=OrderResponse)
+@app.patch("/orders/{order_id}/status/", response_model=OrderResponse, tags=["Orders"])
 def update_order_status(order_id: int, order_status: OrderStatusUpdate, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
     if order_status.status == "cancelled":
@@ -446,33 +439,33 @@ def update_order_status(order_id: int, order_status: OrderStatusUpdate, db: Sess
     return order
 
 
-@app.post("/orders/{order_id}/cancel/", response_model=OrderResponse)
+@app.post("/orders/{order_id}/cancel/", response_model=OrderResponse, tags=["Orders"])
 def cancel_order_endpoint(order_id: int, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
     return cancel_order(db, order)
 
 
-@app.post("/products/{product_id}/reviews/", status_code=status.HTTP_201_CREATED)
+@app.post("/products/{product_id}/reviews/", status_code=status.HTTP_201_CREATED, tags=["Reviews"])
 def create_review_endpoint(product_id: int, review: ReviewCreate, db: Session = Depends(get_db)):
     get_existing_product(db, product_id)
     get_existing_user(db, review.user_id)
     return create_review(db, product_id, review)
 
 
-@app.get("/products/{product_id}/reviews/")
+@app.get("/products/{product_id}/reviews/", tags=["Reviews"])
 def read_reviews(product_id: int, db: Session = Depends(get_db)):
     get_existing_product(db, product_id)
     return get_reviews(db, product_id)
 
 
-@app.get("/products/{product_id}/rating/")
+@app.get("/products/{product_id}/rating/", tags=["Reviews"])
 def read_product_rating(product_id: int, db: Session = Depends(get_db)):
     get_existing_product(db, product_id)
     average_rating = get_product_average_rating(db, product_id)
     return {"product_id": product_id, "average_rating": average_rating or 0}
 
 
-@app.delete("/reviews/{review_id}")
+@app.delete("/reviews/{review_id}", tags=["Reviews"])
 def delete_review_endpoint(review_id: int, db: Session = Depends(get_db)):
     review = get_review(db, review_id)
     if not review:
@@ -481,7 +474,7 @@ def delete_review_endpoint(review_id: int, db: Session = Depends(get_db)):
     return {"message": "Review deleted"}
 
 
-@app.post("/favorites/", status_code=status.HTTP_201_CREATED)
+@app.post("/favorites/", status_code=status.HTTP_201_CREATED, tags=["Favorites"])
 def create_favorite_endpoint(favorite: FavoriteCreate, db: Session = Depends(get_db)):
     get_existing_user(db, favorite.user_id)
     get_existing_product(db, favorite.product_id)
@@ -490,13 +483,13 @@ def create_favorite_endpoint(favorite: FavoriteCreate, db: Session = Depends(get
     return create_favorite(db, favorite)
 
 
-@app.get("/favorites/")
+@app.get("/favorites/", tags=["Favorites"])
 def read_favorites(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     return [ProductResponse.model_validate(favorite.product) for favorite in get_favorites(db, user_id)]
 
 
-@app.get("/favorites/{user_id}/{product_id}")
+@app.get("/favorites/{user_id}/{product_id}", tags=["Favorites"])
 def read_favorite(user_id: int, product_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     get_existing_product(db, product_id)
@@ -504,7 +497,7 @@ def read_favorite(user_id: int, product_id: int, db: Session = Depends(get_db)):
     return {"in_favorites": favorite is not None}
 
 
-@app.delete("/favorites/{user_id}/{product_id}")
+@app.delete("/favorites/{user_id}/{product_id}", tags=["Favorites"])
 def delete_favorite_endpoint(user_id: int, product_id: int, db: Session = Depends(get_db)):
     favorite = get_favorite(db, user_id, product_id)
     if not favorite:
@@ -513,7 +506,7 @@ def delete_favorite_endpoint(user_id: int, product_id: int, db: Session = Depend
     return {"message": "Product removed from favorites"}
 
 
-@app.get("/statistics/")
+@app.get("/statistics/", tags=["Statistics"])
 def read_statistics(db: Session = Depends(get_db)):
     users_cnt = db.query(User).count()
     products_cnt = db.query(Product).count()

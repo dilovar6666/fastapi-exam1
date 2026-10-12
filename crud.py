@@ -89,16 +89,22 @@ def get_products(
     limit: int = 20,
 ):
     query = db.query(Product)
+
     if search:
         query = query.filter(Product.name.ilike(f"%{search}%"))
+
     if category_id is not None:
         query = query.filter(Product.category_id == category_id)
+
     if min_price is not None:
         query = query.filter(Product.price >= min_price)
+
     if max_price is not None:
         query = query.filter(Product.price <= max_price)
+
     if in_stock is True:
         query = query.filter(Product.stock > 0)
+
     if in_stock is False:
         query = query.filter(Product.stock == 0)
 
