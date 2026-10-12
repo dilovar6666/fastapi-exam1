@@ -5,6 +5,7 @@ from schemas import *
 from database import *
 from model import *
 from fastapi import *
+from typing import *
 
 
 Base.metadata.create_all(bind=engine)
@@ -492,7 +493,7 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
 
 @app.get("/orders/")
 def read_orders(
-    status: str = None,
+    status: Literal["new", "paid", "cancelled"] | None = None,
     sort_by: str = "date",
     descending: bool = True,
     skip: int = Query(default=0, ge=0),
