@@ -9,8 +9,8 @@ from crud import (
     delete_cart_item, delete_category, delete_favorite, delete_product,
     delete_review, delete_user, get_cart_item, get_cart_items, get_categories,
     get_category, get_favorite, get_favorites, get_order, get_orders,
-    get_product, get_product_average_rating, get_products, get_review,
-    get_reviews, get_user, get_user_orders, get_users, update_cart_item,
+    get_product, get_product_average_rating, get_products, get_purchased_products,
+    get_review, get_reviews, get_user, get_user_orders, get_users, update_cart_item,
     update_category, update_product, update_user,
 )
 from database import Base, engine, get_db
@@ -78,26 +78,6 @@ def get_successful_orders(orders):
         if order.status != "cancelled":
             successful_orders.append(order)
     return successful_orders
-
-
-def get_purchased_products(orders):
-    products = []
-    for order in orders:
-        for item in order.items:
-            product_found = False
-            for product in products:
-                if product["product_id"] == item.product_id:
-                    product["quantity"] += item.quantity
-                    product_found = True
-            if not product_found:
-                products.append(
-                    {
-                        "product_id": item.product_id,
-                        "product": ProductResponse.model_validate(item.product),
-                        "quantity": item.quantity,
-                    }
-                )
-    return products
 
 
 def get_most_expensive_order(orders):
@@ -241,7 +221,14 @@ def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
         "most_expensive_order": order_data(expensive_order) if expensive_order else None,
         "total_amount": get_total_amount(successful_orders),
         "order_count": len(successful_orders),
-        "purchased_products": get_purchased_products(successful_orders),
+        "purchased_products": [
+            {
+                "product_id": product.id,
+                "product": ProductResponse.model_validate(product),
+                "quantity": quantity,
+            }
+            for product, quantity in get_purchased_products(db, user_id)
+        ],
     }
 
 

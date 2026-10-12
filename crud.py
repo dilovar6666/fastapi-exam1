@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from model import CartItem, Category, Favorite, Order, OrderItem, Product, Review, User
@@ -215,6 +216,18 @@ def get_orders(
 
 def get_user_orders(db: Session, user_id: int):
     return db.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).all()
+
+
+def get_purchased_products(db: Session, user_id: int):
+    return (
+        db.query(Product, func.sum(OrderItem.quantity).label("quantity"))
+        .join(OrderItem, OrderItem.product_id == Product.id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .filter(Order.user_id == user_id, Order.status != "cancelled")
+        .group_by(Product.id)
+        .order_by(Product.id)
+        .all()
+    )
 
 
 def get_order_total(cart_items):
