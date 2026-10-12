@@ -9,21 +9,26 @@ class Schema(BaseModel):
 
 class UserCreate(Schema):
     name: str = Field(min_length=1, max_length=100)
-    email: str = Field(
-        min_length=5,
-        max_length=255,
-        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
-    )
+    email: str = Field(min_length=5, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str):
+        if "@" not in value or "." not in value.rsplit("@", 1)[-1]:
+            raise ValueError("Email must contain @ and domain")
+        return value
 
 
 class UserUpdate(Schema):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    email: str | None = Field(
-        default=None,
-        min_length=5,
-        max_length=255,
-        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
-    )
+    email: str | None = Field(default=None, min_length=5, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None):
+        if value is not None and ("@" not in value or "." not in value.rsplit("@", 1)[-1]):
+            raise ValueError("Email must contain @ and domain")
+        return value
 
 
 class CategoryCreate(Schema):
