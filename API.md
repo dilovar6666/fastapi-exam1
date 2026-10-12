@@ -50,3 +50,8 @@ Catalogue selections are available at `/products/cheap/`,
 Use `POST /cart/add/` with `user_id`, `product_id`, and `quantity` to add an
 available product. `GET /cart/{user_id}` returns cart items with each subtotal
 and the cart `total_amount`.
+
+`PATCH /cart/items/{cart_item_id}` supports `set`, `increase`, and `decrease`
+operations. The API rejects quantities below one or above current stock.
+`GET /cart/{user_id}/total/`, `DELETE /cart/items/{cart_item_id}`, and
+`DELETE /cart/clear/{user_id}` provide total, item removal, and cart clearing.
