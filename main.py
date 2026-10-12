@@ -30,39 +30,6 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Online Store")
 
 
-def get_successful_orders(orders):
-    successful_orders = []
-    for order in orders:
-        if order.status != "cancelled":
-            successful_orders.append(order)
-    return successful_orders
-
-
-def get_most_expensive_order(orders):
-    expensive_order = None
-    for order in orders:
-        if expensive_order is None or order.total_amount > expensive_order.total_amount:
-            expensive_order = order
-    return expensive_order
-
-
-def get_purchased_product_count(orders, product_id):
-    quantity = 0
-    for order in orders:
-        if order.status != "cancelled":
-            for item in order.items:
-                if item.product_id == product_id:
-                    quantity += item.quantity
-    return quantity
-
-
-def get_total_amount(orders):
-    total_amount = 0
-    for order in orders:
-        total_amount += order.total_amount
-    return total_amount
-
-
 def get_existing_user(db: Session, user_id: int):
     user = get_user(db, user_id)
     if not user:
@@ -145,14 +112,17 @@ def read_user_orders(user_id: int, db: Session = Depends(get_db)):
 def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     orders = get_user_orders(db, user_id)
-    successful_orders = get_successful_orders(orders)
+    successful_orders = [order for order in orders if order.status != "cancelled"]
     last_order = orders[0] if orders else None
-    expensive_order = get_most_expensive_order(successful_orders)
+    expensive_order = None
+    for order in successful_orders:
+        if expensive_order is None or order.total_amount > expensive_order.total_amount:
+            expensive_order = order
     return {
         "orders": [OrderResponse.model_validate(order) for order in orders],
         "last_order": OrderResponse.model_validate(last_order) if last_order else None,
         "most_expensive_order": OrderResponse.model_validate(expensive_order) if expensive_order else None,
-        "total_amount": get_total_amount(successful_orders),
+        "total_amount": sum(order.total_amount for order in successful_orders),
         "order_count": len(successful_orders),
         "purchased_products": [
             {
@@ -168,8 +138,16 @@ def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
 @app.get("/users/{user_id}/purchases/products/{product_id}")
 def read_purchased_product_count(user_id: int, product_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    orders = get_user_orders(db, user_id)
-    quantity = get_purchased_product_count(orders, product_id)
+    quantity = (
+        db.query(func.coalesce(func.sum(OrderItem.quantity), 0))
+        .join(Order, Order.id == OrderItem.order_id)
+        .filter(
+            Order.user_id == user_id,
+            Order.status != "cancelled",
+            OrderItem.product_id == product_id,
+        )
+        .scalar()
+    )
     return {"user_id": user_id, "product_id": product_id, "purchased_quantity": quantity}
 
 
@@ -177,7 +155,7 @@ def read_purchased_product_count(user_id: int, product_id: int, db: Session = De
 def read_user_statistics(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     orders = db.query(Order).filter(Order.user_id == user_id, Order.status != "cancelled").all()
-    total_amount = get_total_amount(orders)
+    total_amount = sum(order.total_amount for order in orders)
     return {
         "user_id": user_id,
         "order_count": len(orders),
