@@ -1,0 +1,639 @@
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+import crud
+import schemas
+from database import Base, engine, get_db
+from model import CartItem, Category, Order, OrderItem, Product, User
+
+
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Online Store")
+
+
+def product_data(product):
+    return {
+        "id": product.id,
+        "name": product.name,
+        "description": product.description,
+        "price": product.price,
+        "stock": product.stock,
+        "category_id": product.category_id,
+    }
+
+
+def order_data(order):
+    items = []
+    for item in order.items:
+        product = None
+        if item.product:
+            product = product_data(item.product)
+        items.append(
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+                "price": item.price,
+                "subtotal": item.quantity * item.price,
+                "product": product,
+            }
+        )
+    return {
+        "id": order.id,
+        "user_id": order.user_id,
+        "status": order.status,
+        "total_amount": order.total_amount,
+        "created_at": order.created_at,
+        "items": items,
+    }
+
+
+def cart_data(db: Session, user_id: int):
+    items = []
+    total_amount = 0
+    for item in crud.get_cart_items(db, user_id):
+        subtotal = item.quantity * item.product.price
+        total_amount += subtotal
+        items.append(
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+                "subtotal": subtotal,
+                "product": product_data(item.product),
+            }
+        )
+    return {"user_id": user_id, "items": items, "total_amount": total_amount}
+
+
+def get_successful_orders(orders):
+    successful_orders = []
+    for order in orders:
+        if order.status != "cancelled":
+            successful_orders.append(order)
+    return successful_orders
+
+
+def get_purchased_products(orders):
+    products = []
+    for order in orders:
+        for item in order.items:
+            product_found = False
+            for product in products:
+                if product["product_id"] == item.product_id:
+                    product["quantity"] += item.quantity
+                    product_found = True
+            if not product_found:
+                products.append(
+                    {
+                        "product_id": item.product_id,
+                        "product": product_data(item.product),
+                        "quantity": item.quantity,
+                    }
+                )
+    return products
+
+
+def get_most_expensive_order(orders):
+    expensive_order = None
+    for order in orders:
+        if expensive_order is None or order.total_amount > expensive_order.total_amount:
+            expensive_order = order
+    return expensive_order
+
+
+def get_purchased_product_count(orders, product_id):
+    quantity = 0
+    for order in orders:
+        if order.status != "cancelled":
+            for item in order.items:
+                if item.product_id == product_id:
+                    quantity += item.quantity
+    return quantity
+
+
+def get_total_amount(orders):
+    total_amount = 0
+    for order in orders:
+        total_amount += order.total_amount
+    return total_amount
+
+
+def get_most_sold_product(products, orders):
+    most_sold_product = None
+    most_sold_quantity = 0
+    for product in products:
+        sold_quantity = 0
+        for order in orders:
+            if order.status != "cancelled":
+                for item in order.items:
+                    if item.product_id == product.id:
+                        sold_quantity += item.quantity
+        if sold_quantity > most_sold_quantity:
+            most_sold_product = product
+            most_sold_quantity = sold_quantity
+    return most_sold_product, most_sold_quantity
+
+
+def get_best_customer(users, orders):
+    best_customer = None
+    best_total_amount = 0
+    for user in users:
+        user_total_amount = 0
+        for order in orders:
+            if order.user_id == user.id and order.status != "cancelled":
+                user_total_amount += order.total_amount
+        if user_total_amount > best_total_amount:
+            best_customer = user
+            best_total_amount = user_total_amount
+    return best_customer, best_total_amount
+
+
+def get_existing_user(db: Session, user_id: int):
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+def get_existing_category(db: Session, category_id: int):
+    category = crud.get_category(db, category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
+
+
+def get_existing_product(db: Session, product_id: int):
+    product = crud.get_product(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+def get_existing_order(db: Session, order_id: int):
+    order = crud.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+@app.post("/users/", status_code=status.HTTP_201_CREATED)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == user.email).first():
+        raise HTTPException(status_code=400, detail="Email is already used")
+    return crud.create_user(db, user)
+
+
+@app.get("/users/")
+def read_users(db: Session = Depends(get_db)):
+    return crud.get_users(db)
+
+
+@app.get("/users/{user_id}")
+def read_user(user_id: int, db: Session = Depends(get_db)):
+    return get_existing_user(db, user_id)
+
+
+@app.put("/users/{user_id}")
+def update_user(user_id: int, user: schemas.UserUpdate, db: Session = Depends(get_db)):
+    db_user = get_existing_user(db, user_id)
+    if user.email and user.email != db_user.email:
+        if db.query(User).filter(User.email == user.email).first():
+            raise HTTPException(status_code=400, detail="Email is already used")
+    return crud.update_user(db, db_user, user)
+
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = get_existing_user(db, user_id)
+    crud.delete_user(db, user)
+    return {"message": "User deleted"}
+
+
+@app.get("/users/{user_id}/cart/")
+def read_user_cart(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    return cart_data(db, user_id)
+
+
+@app.get("/users/{user_id}/orders/")
+def read_user_orders(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    return [order_data(order) for order in crud.get_user_orders(db, user_id)]
+
+
+@app.get("/users/{user_id}/purchases/")
+def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    orders = crud.get_user_orders(db, user_id)
+    successful_orders = get_successful_orders(orders)
+    last_order = orders[0] if orders else None
+    expensive_order = get_most_expensive_order(successful_orders)
+    return {
+        "orders": [order_data(order) for order in orders],
+        "last_order": order_data(last_order) if last_order else None,
+        "most_expensive_order": order_data(expensive_order) if expensive_order else None,
+        "total_amount": get_total_amount(successful_orders),
+        "order_count": len(successful_orders),
+        "purchased_products": get_purchased_products(successful_orders),
+    }
+
+
+@app.get("/users/{user_id}/purchases/products/{product_id}")
+def read_purchased_product_count(user_id: int, product_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    orders = crud.get_user_orders(db, user_id)
+    quantity = get_purchased_product_count(orders, product_id)
+    return {"user_id": user_id, "product_id": product_id, "purchased_quantity": quantity}
+
+
+@app.get("/users/{user_id}/statistics/")
+def read_user_statistics(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    orders = db.query(Order).filter(Order.user_id == user_id, Order.status != "cancelled").all()
+    total_amount = get_total_amount(orders)
+    return {
+        "user_id": user_id,
+        "order_count": len(orders),
+        "total_amount": total_amount,
+        "average_order_amount": total_amount / len(orders) if orders else 0,
+    }
+
+
+@app.post("/categories/", status_code=status.HTTP_201_CREATED)
+def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
+    if db.query(Category).filter(Category.name == category.name).first():
+        raise HTTPException(status_code=400, detail="Category name is already used")
+    return crud.create_category(db, category)
+
+
+@app.get("/categories/")
+def read_categories(
+    search: str = None,
+    sort_by_name: bool = False,
+    db: Session = Depends(get_db),
+):
+    return crud.get_categories(db, search, sort_by_name)
+
+
+@app.get("/categories/{category_id}")
+def read_category(category_id: int, db: Session = Depends(get_db)):
+    return get_existing_category(db, category_id)
+
+
+@app.put("/categories/{category_id}")
+def update_category(category_id: int, category: schemas.CategoryUpdate, db: Session = Depends(get_db)):
+    db_category = get_existing_category(db, category_id)
+    if category.name and category.name != db_category.name:
+        if db.query(Category).filter(Category.name == category.name).first():
+            raise HTTPException(status_code=400, detail="Category name is already used")
+    return crud.update_category(db, db_category, category)
+
+
+@app.delete("/categories/{category_id}")
+def delete_category(category_id: int, db: Session = Depends(get_db)):
+    category = get_existing_category(db, category_id)
+    if db.query(Product).filter(Product.category_id == category_id).first():
+        raise HTTPException(status_code=400, detail="Category has products")
+    crud.delete_category(db, category)
+    return {"message": "Category deleted"}
+
+
+@app.get("/categories/{category_id}/products/")
+def read_category_products(category_id: int, db: Session = Depends(get_db)):
+    get_existing_category(db, category_id)
+    return crud.get_products(db, category_id=category_id, limit=100)
+
+
+@app.post("/products/", status_code=status.HTTP_201_CREATED)
+def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
+    get_existing_category(db, product.category_id)
+    return crud.create_product(db, product)
+
+
+@app.get("/products/")
+def read_products(
+    search: str = None,
+    category_id: int = None,
+    min_price: float = Query(default=None, gt=0),
+    max_price: float = Query(default=None, gt=0),
+    in_stock: bool = None,
+    sort_by: str = None,
+    descending: bool = False,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if min_price is not None and max_price is not None and min_price > max_price:
+        raise HTTPException(status_code=400, detail="Minimum price is greater than maximum price")
+    
+    if sort_by not in (None, "price", "name", "stock"):
+        raise HTTPException(status_code=400, detail="sort_by must be price, name or stock")
+    
+    return crud.get_products(db, search, category_id, min_price, max_price, in_stock, sort_by, descending, skip, limit)
+
+
+@app.get("/products/cheap/")
+def read_cheap_products(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)):
+    return crud.get_products(db, sort_by="price", limit=limit)
+
+
+@app.get("/products/expensive/")
+def read_expensive_products(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)):
+    return crud.get_products(db, sort_by="price", descending=True, limit=limit)
+
+
+@app.get("/products/out-of-stock/")
+def read_out_of_stock_products(db: Session = Depends(get_db)):
+    return crud.get_products(db, in_stock=False, limit=100)
+
+
+@app.get("/products/low-stock/")
+def read_low_stock_products(db: Session = Depends(get_db)):
+    return db.query(Product).filter(Product.stock < 5).order_by(Product.stock).all()
+
+
+@app.get("/products/high-rating/")
+def read_high_rating_products(db: Session = Depends(get_db)):
+    products = db.query(Product).all()
+    high_rating_products = []
+    for product in products:
+        average_rating = crud.get_product_average_rating(db, product.id)
+        if average_rating >= 4:
+            high_rating_products.append({"product": product_data(product), "average_rating": average_rating})
+    return high_rating_products
+
+
+@app.get("/products/low-rating/")
+def read_low_rating_products(db: Session = Depends(get_db)):
+    products = db.query(Product).all()
+    low_rating_products = []
+    for product in products:
+        reviews = crud.get_reviews(db, product.id)
+        if reviews:
+            average_rating = crud.get_product_average_rating(db, product.id)
+            if average_rating <= 2:
+                low_rating_products.append({"product": product_data(product), "average_rating": average_rating})
+    return low_rating_products
+
+
+@app.get("/products/{product_id}")
+def read_product(product_id: int, db: Session = Depends(get_db)):
+    return get_existing_product(db, product_id)
+
+
+@app.put("/products/{product_id}")
+def update_product(product_id: int, product: schemas.ProductUpdate, db: Session = Depends(get_db)):
+    db_product = get_existing_product(db, product_id)
+    if product.category_id is not None:
+        get_existing_category(db, product.category_id)
+    return crud.update_product(db, db_product, product)
+
+
+@app.delete("/products/{product_id}")
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    product = get_existing_product(db, product_id)
+    order_item = (
+        db.query(OrderItem)
+        .filter(OrderItem.product_id == product_id)
+        .first()
+    )
+    if order_item:
+        raise HTTPException(status_code=400, detail="Product is in an order and cannot be deleted")
+    crud.delete_product(db, product)
+    return {"message": "Product deleted"}
+
+
+@app.get("/products/{product_id}/similar/")
+def read_similar_products(product_id: int, db: Session = Depends(get_db)):
+    product = get_existing_product(db, product_id)
+    return (
+        db.query(Product)
+        .filter(Product.category_id == product.category_id, Product.id != product.id)
+        .order_by(Product.id)
+        .limit(10)
+        .all()
+    )
+
+
+@app.post("/cart/add/", status_code=status.HTTP_201_CREATED)
+def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
+    get_existing_user(db, item.user_id)
+    product = get_existing_product(db, item.product_id)
+    if product.stock == 0:
+        raise HTTPException(status_code=400, detail="Product is out of stock")
+    current_item = (
+        db.query(CartItem)
+        .filter(CartItem.user_id == item.user_id, CartItem.product_id == item.product_id)
+        .first()
+    )
+    current_quantity = current_item.quantity if current_item else 0
+    if current_quantity + item.quantity > product.stock:
+        raise HTTPException(status_code=400, detail="Quantity is greater than stock")
+    return crud.add_to_cart(db, item.user_id, product, item.quantity)
+
+
+@app.get("/cart/{user_id}")
+def read_cart(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    return cart_data(db, user_id)
+
+
+@app.get("/cart/{user_id}/total/")
+def read_cart_total(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    return {"user_id": user_id, "total_amount": cart_data(db, user_id)["total_amount"]}
+
+
+@app.patch("/cart/items/{cart_item_id}")
+def update_cart_item(cart_item_id: int, item: schemas.CartItemUpdate, db: Session = Depends(get_db)):
+    cart_item = crud.get_cart_item(db, cart_item_id)
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+    if item.operation not in ("set", "increase", "decrease"):
+        raise HTTPException(status_code=400, detail="operation must be set, increase or decrease")
+    if item.operation == "increase" and cart_item.quantity + item.quantity > cart_item.product.stock:
+        raise HTTPException(status_code=400, detail="Quantity is greater than stock")
+    if item.operation == "set" and item.quantity > cart_item.product.stock:
+        raise HTTPException(status_code=400, detail="Quantity is greater than stock")
+    if item.operation == "decrease" and cart_item.quantity - item.quantity < 1:
+        raise HTTPException(status_code=400, detail="Quantity cannot be less than 1")
+    updated_item = crud.update_cart_item(db, cart_item, item.quantity, item.operation)
+    if not updated_item:
+        raise HTTPException(status_code=400, detail="Quantity cannot be less than 1")
+    return updated_item
+
+
+@app.delete("/cart/items/{cart_item_id}")
+def delete_cart_item(cart_item_id: int, db: Session = Depends(get_db)):
+    cart_item = crud.get_cart_item(db, cart_item_id)
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+    crud.delete_cart_item(db, cart_item)
+    return {"message": "Cart item deleted"}
+
+
+@app.delete("/cart/clear/{user_id}")
+def clear_cart(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    crud.clear_cart(db, user_id)
+    return {"message": "Cart cleared"}
+
+
+@app.post("/orders/create/", status_code=status.HTTP_201_CREATED)
+def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+    get_existing_user(db, order.user_id)
+    new_order, error = crud.create_order_from_cart(db, order.user_id)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    return order_data(crud.get_order(db, new_order.id))
+
+
+@app.get("/orders/")
+def read_orders(
+    status: str = None,
+    sort_by: str = "date",
+    descending: bool = True,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if sort_by not in ("date", "amount"):
+        raise HTTPException(status_code=400, detail="sort_by must be date or amount")
+    return [order_data(order) for order in crud.get_orders(db, status, sort_by, descending, skip, limit)]
+
+
+@app.get("/orders/new/")
+def read_new_orders(db: Session = Depends(get_db)):
+    return [order_data(order) for order in crud.get_orders(db, status="new")]
+
+
+@app.get("/orders/paid/")
+def read_paid_orders(db: Session = Depends(get_db)):
+    return [order_data(order) for order in crud.get_orders(db, status="paid")]
+
+
+@app.get("/orders/cancelled/")
+def read_cancelled_orders(db: Session = Depends(get_db)):
+    return [order_data(order) for order in crud.get_orders(db, status="cancelled")]
+
+
+@app.get("/orders/{order_id}")
+def read_order(order_id: int, db: Session = Depends(get_db)):
+    return order_data(get_existing_order(db, order_id))
+
+
+@app.patch("/orders/{order_id}/status/")
+def update_order_status(order_id: int, order_status: schemas.OrderStatusUpdate, db: Session = Depends(get_db)):
+    order = get_existing_order(db, order_id)
+    if order_status.status not in ("new", "paid", "cancelled"):
+        raise HTTPException(status_code=400, detail="Status must be new, paid or cancelled")
+    if order_status.status == "cancelled":
+        return order_data(crud.cancel_order(db, order))
+    if order.status == "cancelled":
+        raise HTTPException(status_code=400, detail="Cancelled order cannot be changed")
+    order.status = order_status.status
+    db.commit()
+    db.refresh(order)
+    return order_data(order)
+
+
+@app.post("/orders/{order_id}/cancel/")
+def cancel_order(order_id: int, db: Session = Depends(get_db)):
+    order = get_existing_order(db, order_id)
+    return order_data(crud.cancel_order(db, order))
+
+
+@app.post("/products/{product_id}/reviews/", status_code=status.HTTP_201_CREATED)
+def create_review(product_id: int, review: schemas.ReviewCreate, db: Session = Depends(get_db)):
+    get_existing_product(db, product_id)
+    get_existing_user(db, review.user_id)
+    return crud.create_review(db, product_id, review)
+
+
+@app.get("/products/{product_id}/reviews/")
+def read_reviews(product_id: int, db: Session = Depends(get_db)):
+    get_existing_product(db, product_id)
+    return crud.get_reviews(db, product_id)
+
+
+@app.get("/products/{product_id}/rating/")
+def read_product_rating(product_id: int, db: Session = Depends(get_db)):
+    get_existing_product(db, product_id)
+    average_rating = crud.get_product_average_rating(db, product_id)
+    return {"product_id": product_id, "average_rating": average_rating or 0}
+
+
+@app.delete("/reviews/{review_id}")
+def delete_review(review_id: int, db: Session = Depends(get_db)):
+    review = crud.get_review(db, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    crud.delete_review(db, review)
+    return {"message": "Review deleted"}
+
+
+@app.post("/favorites/", status_code=status.HTTP_201_CREATED)
+def create_favorite(favorite: schemas.FavoriteCreate, db: Session = Depends(get_db)):
+    get_existing_user(db, favorite.user_id)
+    get_existing_product(db, favorite.product_id)
+    if crud.get_favorite(db, favorite.user_id, favorite.product_id):
+        raise HTTPException(status_code=400, detail="Product is already in favorites")
+    return crud.create_favorite(db, favorite)
+
+
+@app.get("/favorites/")
+def read_favorites(user_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    return [product_data(favorite.product) for favorite in crud.get_favorites(db, user_id)]
+
+
+@app.get("/favorites/{user_id}/{product_id}")
+def read_favorite(user_id: int, product_id: int, db: Session = Depends(get_db)):
+    get_existing_user(db, user_id)
+    get_existing_product(db, product_id)
+    favorite = crud.get_favorite(db, user_id, product_id)
+    return {"in_favorites": favorite is not None}
+
+
+@app.delete("/favorites/{user_id}/{product_id}")
+def delete_favorite(user_id: int, product_id: int, db: Session = Depends(get_db)):
+    favorite = crud.get_favorite(db, user_id, product_id)
+    if not favorite:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    crud.delete_favorite(db, favorite)
+    return {"message": "Product removed from favorites"}
+
+
+@app.get("/statistics/")
+def read_statistics(db: Session = Depends(get_db)):
+    orders = db.query(Order).all()
+    users = db.query(User).all()
+    products = db.query(Product).all()
+    total_orders_amount = get_total_amount(orders)
+    average_order_amount = 0
+
+    if orders:
+        average_order_amount = total_orders_amount / len(orders)
+
+    low_stock_products = db.query(Product).filter(Product.stock < 5).order_by(Product.stock).all()
+    most_expensive_product = db.query(Product).order_by(Product.price.desc()).first()
+    cheapest_product = db.query(Product).order_by(Product.price).first()
+    most_sold_product, most_sold_quantity = get_most_sold_product(products, orders)
+    best_customer, best_total_amount = get_best_customer(users, orders)
+    
+    return {
+        "users_count": len(users),
+        "products_count": len(products),
+        "categories_count": db.query(Category).count(),
+        "orders_count": len(orders),
+        "total_orders_amount": total_orders_amount,
+        "average_order_amount": average_order_amount,
+        "most_sold_product": product_data(most_sold_product) if most_sold_product else None,
+        "most_sold_quantity": most_sold_quantity,
+        "most_expensive_product": product_data(most_expensive_product) if most_expensive_product else None,
+        "cheapest_product": product_data(cheapest_product) if cheapest_product else None,
+        "low_stock_products": [product_data(product) for product in low_stock_products],
+        "best_customer": {"id": best_customer.id, "name": best_customer.name, "total_amount": best_total_amount} if best_customer else None,
+    }
