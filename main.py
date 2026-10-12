@@ -1,10 +1,10 @@
-from fastapi import Depends, FastAPI, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import *
 
-import crud
-import schemas
-from database import Base, engine, get_db
-from model import CartItem, Category, Order, OrderItem, Product, User
+from crud import *
+from schemas import *
+from database import *
+from model import *
+from fastapi import *
 
 
 Base.metadata.create_all(bind=engine)
@@ -52,7 +52,7 @@ def order_data(order):
 def cart_data(db: Session, user_id: int):
     items = []
     total_amount = 0
-    for item in crud.get_cart_items(db, user_id):
+    for item in get_cart_items(db, user_id):
         subtotal = item.quantity * item.product.price
         total_amount += subtotal
         items.append(
@@ -151,43 +151,43 @@ def get_best_customer(users, orders):
 
 
 def get_existing_user(db: Session, user_id: int):
-    user = crud.get_user(db, user_id)
+    user = get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
 def get_existing_category(db: Session, category_id: int):
-    category = crud.get_category(db, category_id)
+    category = get_category(db, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
 
 def get_existing_product(db: Session, product_id: int):
-    product = crud.get_product(db, product_id)
+    product = get_product(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
 
 def get_existing_order(db: Session, order_id: int):
-    order = crud.get_order(db, order_id)
+    order = get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
 
 
 @app.post("/users/", status_code=status.HTTP_201_CREATED)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user_endpoint(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email is already used")
-    return crud.create_user(db, user)
+    return create_user(db, user)
 
 
 @app.get("/users/")
 def read_users(db: Session = Depends(get_db)):
-    return crud.get_users(db)
+    return get_users(db)
 
 
 @app.get("/users/{user_id}")
@@ -196,18 +196,18 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/users/{user_id}")
-def update_user(user_id: int, user: schemas.UserUpdate, db: Session = Depends(get_db)):
+def update_user_endpoint(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
     db_user = get_existing_user(db, user_id)
     if user.email and user.email != db_user.email:
         if db.query(User).filter(User.email == user.email).first():
             raise HTTPException(status_code=400, detail="Email is already used")
-    return crud.update_user(db, db_user, user)
+    return update_user(db, db_user, user)
 
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
     user = get_existing_user(db, user_id)
-    crud.delete_user(db, user)
+    delete_user(db, user)
     return {"message": "User deleted"}
 
 
@@ -220,13 +220,13 @@ def read_user_cart(user_id: int, db: Session = Depends(get_db)):
 @app.get("/users/{user_id}/orders/")
 def read_user_orders(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return [order_data(order) for order in crud.get_user_orders(db, user_id)]
+    return [order_data(order) for order in get_user_orders(db, user_id)]
 
 
 @app.get("/users/{user_id}/purchases/")
 def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    orders = crud.get_user_orders(db, user_id)
+    orders = get_user_orders(db, user_id)
     successful_orders = get_successful_orders(orders)
     last_order = orders[0] if orders else None
     expensive_order = get_most_expensive_order(successful_orders)
@@ -243,7 +243,7 @@ def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
 @app.get("/users/{user_id}/purchases/products/{product_id}")
 def read_purchased_product_count(user_id: int, product_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    orders = crud.get_user_orders(db, user_id)
+    orders = get_user_orders(db, user_id)
     quantity = get_purchased_product_count(orders, product_id)
     return {"user_id": user_id, "product_id": product_id, "purchased_quantity": quantity}
 
@@ -262,10 +262,10 @@ def read_user_statistics(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/categories/", status_code=status.HTTP_201_CREATED)
-def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
+def create_category_endpoint(category: CategoryCreate, db: Session = Depends(get_db)):
     if db.query(Category).filter(Category.name == category.name).first():
         raise HTTPException(status_code=400, detail="Category name is already used")
-    return crud.create_category(db, category)
+    return create_category(db, category)
 
 
 @app.get("/categories/")
@@ -274,7 +274,7 @@ def read_categories(
     sort_by_name: bool = False,
     db: Session = Depends(get_db),
 ):
-    return crud.get_categories(db, search, sort_by_name)
+    return get_categories(db, search, sort_by_name)
 
 
 @app.get("/categories/{category_id}")
@@ -283,33 +283,33 @@ def read_category(category_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/categories/{category_id}")
-def update_category(category_id: int, category: schemas.CategoryUpdate, db: Session = Depends(get_db)):
+def update_category_endpoint(category_id: int, category: CategoryUpdate, db: Session = Depends(get_db)):
     db_category = get_existing_category(db, category_id)
     if category.name and category.name != db_category.name:
         if db.query(Category).filter(Category.name == category.name).first():
             raise HTTPException(status_code=400, detail="Category name is already used")
-    return crud.update_category(db, db_category, category)
+    return update_category(db, db_category, category)
 
 
 @app.delete("/categories/{category_id}")
-def delete_category(category_id: int, db: Session = Depends(get_db)):
+def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
     category = get_existing_category(db, category_id)
     if db.query(Product).filter(Product.category_id == category_id).first():
         raise HTTPException(status_code=400, detail="Category has products")
-    crud.delete_category(db, category)
+    delete_category(db, category)
     return {"message": "Category deleted"}
 
 
 @app.get("/categories/{category_id}/products/")
 def read_category_products(category_id: int, db: Session = Depends(get_db)):
     get_existing_category(db, category_id)
-    return crud.get_products(db, category_id=category_id, limit=100)
+    return get_products(db, category_id=category_id, limit=100)
 
 
 @app.post("/products/", status_code=status.HTTP_201_CREATED)
-def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
+def create_product_endpoint(product: ProductCreate, db: Session = Depends(get_db)):
     get_existing_category(db, product.category_id)
-    return crud.create_product(db, product)
+    return create_product(db, product)
 
 
 @app.get("/products/")
@@ -331,22 +331,22 @@ def read_products(
     if sort_by not in (None, "price", "name", "stock"):
         raise HTTPException(status_code=400, detail="sort_by must be price, name or stock")
     
-    return crud.get_products(db, search, category_id, min_price, max_price, in_stock, sort_by, descending, skip, limit)
+    return get_products(db, search, category_id, min_price, max_price, in_stock, sort_by, descending, skip, limit)
 
 
 @app.get("/products/cheap/")
 def read_cheap_products(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)):
-    return crud.get_products(db, sort_by="price", limit=limit)
+    return get_products(db, sort_by="price", limit=limit)
 
 
 @app.get("/products/expensive/")
 def read_expensive_products(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)):
-    return crud.get_products(db, sort_by="price", descending=True, limit=limit)
+    return get_products(db, sort_by="price", descending=True, limit=limit)
 
 
 @app.get("/products/out-of-stock/")
 def read_out_of_stock_products(db: Session = Depends(get_db)):
-    return crud.get_products(db, in_stock=False, limit=100)
+    return get_products(db, in_stock=False, limit=100)
 
 
 @app.get("/products/low-stock/")
@@ -359,7 +359,7 @@ def read_high_rating_products(db: Session = Depends(get_db)):
     products = db.query(Product).all()
     high_rating_products = []
     for product in products:
-        average_rating = crud.get_product_average_rating(db, product.id)
+        average_rating = get_product_average_rating(db, product.id)
         if average_rating >= 4:
             high_rating_products.append({"product": product_data(product), "average_rating": average_rating})
     return high_rating_products
@@ -370,9 +370,9 @@ def read_low_rating_products(db: Session = Depends(get_db)):
     products = db.query(Product).all()
     low_rating_products = []
     for product in products:
-        reviews = crud.get_reviews(db, product.id)
+        reviews = get_reviews(db, product.id)
         if reviews:
-            average_rating = crud.get_product_average_rating(db, product.id)
+            average_rating = get_product_average_rating(db, product.id)
             if average_rating <= 2:
                 low_rating_products.append({"product": product_data(product), "average_rating": average_rating})
     return low_rating_products
@@ -384,15 +384,15 @@ def read_product(product_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/products/{product_id}")
-def update_product(product_id: int, product: schemas.ProductUpdate, db: Session = Depends(get_db)):
+def update_product_endpoint(product_id: int, product: ProductUpdate, db: Session = Depends(get_db)):
     db_product = get_existing_product(db, product_id)
     if product.category_id is not None:
         get_existing_category(db, product.category_id)
-    return crud.update_product(db, db_product, product)
+    return update_product(db, db_product, product)
 
 
 @app.delete("/products/{product_id}")
-def delete_product(product_id: int, db: Session = Depends(get_db)):
+def delete_product_endpoint(product_id: int, db: Session = Depends(get_db)):
     product = get_existing_product(db, product_id)
     order_item = (
         db.query(OrderItem)
@@ -401,7 +401,7 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     )
     if order_item:
         raise HTTPException(status_code=400, detail="Product is in an order and cannot be deleted")
-    crud.delete_product(db, product)
+    delete_product(db, product)
     return {"message": "Product deleted"}
 
 
@@ -418,7 +418,7 @@ def read_similar_products(product_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/cart/add/", status_code=status.HTTP_201_CREATED)
-def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
+def add_to_cart_endpoint(item: CartItemCreate, db: Session = Depends(get_db)):
     get_existing_user(db, item.user_id)
     product = get_existing_product(db, item.product_id)
     if product.stock == 0:
@@ -431,7 +431,7 @@ def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
     current_quantity = current_item.quantity if current_item else 0
     if current_quantity + item.quantity > product.stock:
         raise HTTPException(status_code=400, detail="Quantity is greater than stock")
-    return crud.add_to_cart(db, item.user_id, product, item.quantity)
+    return add_to_cart(db, item.user_id, product, item.quantity)
 
 
 @app.get("/cart/{user_id}")
@@ -447,8 +447,8 @@ def read_cart_total(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/cart/items/{cart_item_id}")
-def update_cart_item(cart_item_id: int, item: schemas.CartItemUpdate, db: Session = Depends(get_db)):
-    cart_item = crud.get_cart_item(db, cart_item_id)
+def update_cart_item_endpoint(cart_item_id: int, item: CartItemUpdate, db: Session = Depends(get_db)):
+    cart_item = get_cart_item(db, cart_item_id)
     if not cart_item:
         raise HTTPException(status_code=404, detail="Cart item not found")
     if item.operation not in ("set", "increase", "decrease"):
@@ -459,35 +459,35 @@ def update_cart_item(cart_item_id: int, item: schemas.CartItemUpdate, db: Sessio
         raise HTTPException(status_code=400, detail="Quantity is greater than stock")
     if item.operation == "decrease" and cart_item.quantity - item.quantity < 1:
         raise HTTPException(status_code=400, detail="Quantity cannot be less than 1")
-    updated_item = crud.update_cart_item(db, cart_item, item.quantity, item.operation)
+    updated_item = update_cart_item(db, cart_item, item.quantity, item.operation)
     if not updated_item:
         raise HTTPException(status_code=400, detail="Quantity cannot be less than 1")
     return updated_item
 
 
 @app.delete("/cart/items/{cart_item_id}")
-def delete_cart_item(cart_item_id: int, db: Session = Depends(get_db)):
-    cart_item = crud.get_cart_item(db, cart_item_id)
+def delete_cart_item_endpoint(cart_item_id: int, db: Session = Depends(get_db)):
+    cart_item = get_cart_item(db, cart_item_id)
     if not cart_item:
         raise HTTPException(status_code=404, detail="Cart item not found")
-    crud.delete_cart_item(db, cart_item)
+    delete_cart_item(db, cart_item)
     return {"message": "Cart item deleted"}
 
 
 @app.delete("/cart/clear/{user_id}")
-def clear_cart(user_id: int, db: Session = Depends(get_db)):
+def clear_cart_endpoint(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    crud.clear_cart(db, user_id)
+    clear_cart(db, user_id)
     return {"message": "Cart cleared"}
 
 
 @app.post("/orders/create/", status_code=status.HTTP_201_CREATED)
-def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     get_existing_user(db, order.user_id)
-    new_order, error = crud.create_order_from_cart(db, order.user_id)
+    new_order, error = create_order_from_cart(db, order.user_id)
     if error:
         raise HTTPException(status_code=400, detail=error)
-    return order_data(crud.get_order(db, new_order.id))
+    return order_data(get_order(db, new_order.id))
 
 
 @app.get("/orders/")
@@ -503,22 +503,22 @@ def read_orders(
         raise HTTPException(status_code=400, detail="status must be new, paid or cancelled")
     if sort_by not in ("date", "amount"):
         raise HTTPException(status_code=400, detail="sort_by must be date or amount")
-    return [order_data(order) for order in crud.get_orders(db, status, sort_by, descending, skip, limit)]
+    return [order_data(order) for order in get_orders(db, status, sort_by, descending, skip, limit)]
 
 
 @app.get("/orders/new/")
 def read_new_orders(db: Session = Depends(get_db)):
-    return [order_data(order) for order in crud.get_orders(db, status="new")]
+    return [order_data(order) for order in get_orders(db, status="new")]
 
 
 @app.get("/orders/paid/")
 def read_paid_orders(db: Session = Depends(get_db)):
-    return [order_data(order) for order in crud.get_orders(db, status="paid")]
+    return [order_data(order) for order in get_orders(db, status="paid")]
 
 
 @app.get("/orders/cancelled/")
 def read_cancelled_orders(db: Session = Depends(get_db)):
-    return [order_data(order) for order in crud.get_orders(db, status="cancelled")]
+    return [order_data(order) for order in get_orders(db, status="cancelled")]
 
 
 @app.get("/orders/{order_id}")
@@ -527,12 +527,12 @@ def read_order(order_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/orders/{order_id}/status/")
-def update_order_status(order_id: int, order_status: schemas.OrderStatusUpdate, db: Session = Depends(get_db)):
+def update_order_status(order_id: int, order_status: OrderStatusUpdate, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
     if order_status.status not in ("new", "paid", "cancelled"):
         raise HTTPException(status_code=400, detail="Status must be new, paid or cancelled")
     if order_status.status == "cancelled":
-        return order_data(crud.cancel_order(db, order))
+        return order_data(cancel_order(db, order))
     if order.status == "cancelled":
         raise HTTPException(status_code=400, detail="Cancelled order cannot be changed")
     order.status = order_status.status
@@ -542,69 +542,69 @@ def update_order_status(order_id: int, order_status: schemas.OrderStatusUpdate, 
 
 
 @app.post("/orders/{order_id}/cancel/")
-def cancel_order(order_id: int, db: Session = Depends(get_db)):
+def cancel_order_endpoint(order_id: int, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
-    return order_data(crud.cancel_order(db, order))
+    return order_data(cancel_order(db, order))
 
 
 @app.post("/products/{product_id}/reviews/", status_code=status.HTTP_201_CREATED)
-def create_review(product_id: int, review: schemas.ReviewCreate, db: Session = Depends(get_db)):
+def create_review_endpoint(product_id: int, review: ReviewCreate, db: Session = Depends(get_db)):
     get_existing_product(db, product_id)
     get_existing_user(db, review.user_id)
-    return crud.create_review(db, product_id, review)
+    return create_review(db, product_id, review)
 
 
 @app.get("/products/{product_id}/reviews/")
 def read_reviews(product_id: int, db: Session = Depends(get_db)):
     get_existing_product(db, product_id)
-    return crud.get_reviews(db, product_id)
+    return get_reviews(db, product_id)
 
 
 @app.get("/products/{product_id}/rating/")
 def read_product_rating(product_id: int, db: Session = Depends(get_db)):
     get_existing_product(db, product_id)
-    average_rating = crud.get_product_average_rating(db, product_id)
+    average_rating = get_product_average_rating(db, product_id)
     return {"product_id": product_id, "average_rating": average_rating or 0}
 
 
 @app.delete("/reviews/{review_id}")
-def delete_review(review_id: int, db: Session = Depends(get_db)):
-    review = crud.get_review(db, review_id)
+def delete_review_endpoint(review_id: int, db: Session = Depends(get_db)):
+    review = get_review(db, review_id)
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
-    crud.delete_review(db, review)
+    delete_review(db, review)
     return {"message": "Review deleted"}
 
 
 @app.post("/favorites/", status_code=status.HTTP_201_CREATED)
-def create_favorite(favorite: schemas.FavoriteCreate, db: Session = Depends(get_db)):
+def create_favorite_endpoint(favorite: FavoriteCreate, db: Session = Depends(get_db)):
     get_existing_user(db, favorite.user_id)
     get_existing_product(db, favorite.product_id)
-    if crud.get_favorite(db, favorite.user_id, favorite.product_id):
+    if get_favorite(db, favorite.user_id, favorite.product_id):
         raise HTTPException(status_code=400, detail="Product is already in favorites")
-    return crud.create_favorite(db, favorite)
+    return create_favorite(db, favorite)
 
 
 @app.get("/favorites/")
 def read_favorites(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return [product_data(favorite.product) for favorite in crud.get_favorites(db, user_id)]
+    return [product_data(favorite.product) for favorite in get_favorites(db, user_id)]
 
 
 @app.get("/favorites/{user_id}/{product_id}")
 def read_favorite(user_id: int, product_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
     get_existing_product(db, product_id)
-    favorite = crud.get_favorite(db, user_id, product_id)
+    favorite = get_favorite(db, user_id, product_id)
     return {"in_favorites": favorite is not None}
 
 
 @app.delete("/favorites/{user_id}/{product_id}")
-def delete_favorite(user_id: int, product_id: int, db: Session = Depends(get_db)):
-    favorite = crud.get_favorite(db, user_id, product_id)
+def delete_favorite_endpoint(user_id: int, product_id: int, db: Session = Depends(get_db)):
+    favorite = get_favorite(db, user_id, product_id)
     if not favorite:
         raise HTTPException(status_code=404, detail="Favorite not found")
-    crud.delete_favorite(db, favorite)
+    delete_favorite(db, favorite)
     return {"message": "Product removed from favorites"}
 
 
