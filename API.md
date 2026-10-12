@@ -44,3 +44,9 @@ Catalogue selections are available at `/products/cheap/`,
 `/products/expensive/`, `/products/out-of-stock/`, `/products/low-stock/`,
 `/products/high-rating/`, `/products/low-rating/`, and
 `/products/{product_id}/similar/`.
+
+## Cart
+
+Use `POST /cart/add/` with `user_id`, `product_id`, and `quantity` to add an
+available product. `GET /cart/{user_id}` returns cart items with each subtotal
+and the cart `total_amount`.
