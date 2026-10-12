@@ -55,3 +55,9 @@ and the cart `total_amount`.
 operations. The API rejects quantities below one or above current stock.
 `GET /cart/{user_id}/total/`, `DELETE /cart/items/{cart_item_id}`, and
 `DELETE /cart/clear/{user_id}` provide total, item removal, and cart clearing.
+
+## Orders
+
+`POST /orders/create/` creates an order from a user's non-empty cart. Each
+order item stores the product price and quantity at checkout, the order total
+is calculated from those items, stock is decreased, and the cart is cleared.
