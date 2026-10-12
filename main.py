@@ -408,8 +408,6 @@ def read_orders(
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    if status not in (None, "new", "paid", "cancelled"):
-        raise HTTPException(status_code=400, detail="status must be new, paid or cancelled")
     if sort_by not in ("date", "amount"):
         raise HTTPException(status_code=400, detail="sort_by must be date or amount")
     return get_orders(db, status, sort_by, descending, skip, limit)
@@ -438,8 +436,6 @@ def read_order(order_id: int, db: Session = Depends(get_db)):
 @app.patch("/orders/{order_id}/status/", response_model=OrderResponse)
 def update_order_status(order_id: int, order_status: OrderStatusUpdate, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
-    if order_status.status not in ("new", "paid", "cancelled"):
-        raise HTTPException(status_code=400, detail="Status must be new, paid or cancelled")
     if order_status.status == "cancelled":
         return cancel_order(db, order)
     if order.status == "cancelled":
