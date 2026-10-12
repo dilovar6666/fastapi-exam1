@@ -51,8 +51,8 @@ class ProductUpdate(Schema):
 
 
 class CartItemCreate(Schema):
-    user_id: int
-    product_id: int
+    user_id: int = Field(gt=0)
+    product_id: int = Field(gt=0)
     quantity: int = Field(default=1, ge=1)
 
 
@@ -62,7 +62,7 @@ class CartItemUpdate(Schema):
 
 
 class OrderCreate(Schema):
-    user_id: int
+    user_id: int = Field(gt=0)
 
 
 class OrderStatusUpdate(Schema):
@@ -70,11 +70,11 @@ class OrderStatusUpdate(Schema):
 
 
 class ReviewCreate(Schema):
-    user_id: int
+    user_id: int = Field(gt=0)
     rating: int = Field(ge=1, le=5)
     comment: str = None
 
 
 class FavoriteCreate(Schema):
-    user_id: int
-    product_id: int
+    user_id: int = Field(gt=0)
+    product_id: int = Field(gt=0)
