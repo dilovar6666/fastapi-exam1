@@ -35,16 +35,16 @@ class CategoryUpdate(Schema):
 
 
 class ProductCreate(Schema):
-    name: str
-    description: str = None
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
     price: float = Field(gt=0)
     stock: int = Field(ge=0)
     category_id: int
 
 
 class ProductUpdate(Schema):
-    name: str = None
-    description: str = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
     price: float = Field(default=None, gt=0)
     stock: int = Field(default=None, ge=0)
     category_id: int = None
