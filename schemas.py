@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Schema(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class UserCreate(Schema):
