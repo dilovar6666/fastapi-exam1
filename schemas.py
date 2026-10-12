@@ -1,4 +1,5 @@
 from pydantic import *
+from typing import *
 
 
 class Schema(BaseModel):
@@ -66,7 +67,7 @@ class OrderCreate(Schema):
 
 
 class OrderStatusUpdate(Schema):
-    status: str
+    status: Literal["new", "paid", "cancelled"]
 
 
 class ReviewCreate(Schema):
