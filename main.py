@@ -499,6 +499,8 @@ def read_orders(
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    if status not in (None, "new", "paid", "cancelled"):
+        raise HTTPException(status_code=400, detail="status must be new, paid or cancelled")
     if sort_by not in ("date", "amount"):
         raise HTTPException(status_code=400, detail="sort_by must be date or amount")
     return [order_data(order) for order in crud.get_orders(db, status, sort_by, descending, skip, limit)]
