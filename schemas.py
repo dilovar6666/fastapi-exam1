@@ -107,10 +107,3 @@ class ProductResponse(Schema):
     stock: int
     category_id: int
 
-
-class ReviewResponse(Schema):
-    id: int
-    user_id: int
-    product_id: int
-    rating: int
-    comment: str | None

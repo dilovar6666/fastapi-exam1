@@ -18,7 +18,7 @@ from model import CartItem, Category, Order, OrderItem, Product, User
 from schemas import (
     CartItemCreate, CartItemUpdate, CategoryCreate, CategoryUpdate,
     FavoriteCreate, OrderCreate, OrderStatusUpdate, ProductCreate,
-    ProductResponse, ProductUpdate, ReviewCreate, ReviewResponse, UserCreate,
+    ProductResponse, ProductUpdate, ReviewCreate, UserCreate,
     UserResponse, UserUpdate, CategoryResponse,
 )
 
