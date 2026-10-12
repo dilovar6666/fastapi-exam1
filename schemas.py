@@ -59,7 +59,7 @@ class CartItemCreate(Schema):
 
 class CartItemUpdate(Schema):
     quantity: int = Field(ge=1)
-    operation: str = "set"
+    operation: Literal["set", "increase", "decrease"] = "set"
 
 
 class OrderCreate(Schema):
