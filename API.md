@@ -70,3 +70,7 @@ is calculated from those items, stock is decreased, and the cart is cleared.
 Change an order with `PATCH /orders/{order_id}/status/` using `new`, `paid`,
 or `cancelled`, or call `POST /orders/{order_id}/cancel/`. Cancellation
 restores every ordered quantity to product stock and cannot be reversed.
+
+Purchase history at `GET /users/{user_id}/purchases/` includes all orders,
+the last order, the most expensive successful order, the total paid amount,
+order count, and quantities grouped by purchased product.
