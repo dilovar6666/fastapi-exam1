@@ -1,8 +1,5 @@
 __pycache__/
 .venv/
-.venv-test/
-.testenv/
-.pytest_cache/
 database.db
 .env
 .env.*
