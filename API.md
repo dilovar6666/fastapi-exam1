@@ -13,3 +13,11 @@ and a business-rule violation returns `400`.
 - `GET /users/` lists users; `GET /users/{user_id}` returns one user.
 - `PUT /users/{user_id}` updates the supplied name or email.
 - `DELETE /users/{user_id}` removes a user.
+
+User-specific related data is available through:
+
+- `GET /users/{user_id}/cart/`
+- `GET /users/{user_id}/orders/`
+- `GET /users/{user_id}/purchases/`
+- `GET /users/{user_id}/purchases/products/{product_id}`
+- `GET /users/{user_id}/statistics/`
