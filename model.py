@@ -1,9 +1,9 @@
-from datetime import *
+from datetime import datetime
 
-from sqlalchemy import *
-from sqlalchemy.orm import *
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import *
+from database import Base
 
 
 class User(Base):

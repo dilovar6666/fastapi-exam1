@@ -1,11 +1,25 @@
-from sqlalchemy.orm import *
+from typing import Literal
 
-from crud import *
-from schemas import *
-from database import *
-from model import *
-from fastapi import *
-from typing import *
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from crud import (
+    add_to_cart, cancel_order, clear_cart, create_category, create_favorite,
+    create_order_from_cart, create_product, create_review, create_user,
+    delete_cart_item, delete_category, delete_favorite, delete_product,
+    delete_review, delete_user, get_cart_item, get_cart_items, get_categories,
+    get_category, get_favorite, get_favorites, get_order, get_orders,
+    get_product, get_product_average_rating, get_products, get_review,
+    get_reviews, get_user, get_user_orders, get_users, update_cart_item,
+    update_category, update_product, update_user,
+)
+from database import Base, engine, get_db
+from model import CartItem, Category, Order, OrderItem, Product, User
+from schemas import (
+    CartItemCreate, CartItemUpdate, CategoryCreate, CategoryUpdate,
+    FavoriteCreate, OrderCreate, OrderStatusUpdate, ProductCreate,
+    ProductUpdate, ReviewCreate, UserCreate, UserUpdate,
+)
 
 
 Base.metadata.create_all(bind=engine)

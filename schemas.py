@@ -1,5 +1,6 @@
-from pydantic import *
-from typing import *
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Schema(BaseModel):

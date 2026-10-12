@@ -1,6 +1,6 @@
-from sqlalchemy.orm import *
+from sqlalchemy.orm import Session
 
-from model import *
+from model import CartItem, Category, Favorite, Order, OrderItem, Product, Review, User
 
 
 def get_user(db: Session, user_id: int):
