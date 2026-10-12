@@ -61,3 +61,8 @@ operations. The API rejects quantities below one or above current stock.
 `POST /orders/create/` creates an order from a user's non-empty cart. Each
 order item stores the product price and quantity at checkout, the order total
 is calculated from those items, stock is decreased, and the cart is cleared.
+
+`GET /orders/` supports `status`, `sort_by` (`date` or `amount`),
+`descending`, `skip`, and `limit`. Individual orders are available at
+`GET /orders/{order_id}`; `/orders/new/`, `/orders/paid/`, and
+`/orders/cancelled/` return the corresponding status lists.
