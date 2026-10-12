@@ -35,3 +35,7 @@ User-specific related data is available through:
 - `GET /products/{product_id}` returns one product.
 - `PUT /products/{product_id}` changes supplied product fields.
 - `DELETE /products/{product_id}` removes a product that is not in an order.
+
+`GET /products/` accepts `search`, `category_id`, `min_price`, `max_price`,
+`in_stock`, `sort_by`, `descending`, `skip`, and `limit`. Sorting fields are
+`price`, `name`, and `stock`; pagination starts at `skip=0`.
