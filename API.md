@@ -28,3 +28,10 @@ User-specific related data is available through:
 - `GET /categories/` supports `search` and `sort_by_name`.
 - `GET`, `PUT`, and `DELETE /categories/{category_id}` manage one category.
 - `GET /categories/{category_id}/products/` lists the category catalogue.
+
+## Products
+
+- `POST /products/` creates a product in an existing category.
+- `GET /products/{product_id}` returns one product.
+- `PUT /products/{product_id}` changes supplied product fields.
+- `DELETE /products/{product_id}` removes a product that is not in an order.
