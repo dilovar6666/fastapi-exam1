@@ -16,60 +16,17 @@ from crud import (
 from database import Base, engine, get_db
 from model import CartItem, Category, Order, OrderItem, Product, User
 from schemas import (
-    CartItemCreate, CartItemUpdate, CategoryCreate, CategoryUpdate,
-    FavoriteCreate, OrderCreate, OrderStatusUpdate, ProductCreate,
-    ProductResponse, ProductUpdate, ReviewCreate, UserCreate,
-    UserResponse, UserUpdate, CategoryResponse,
+    CartItemCreate, CartItemUpdate, CartResponse,
+    CategoryCreate, CategoryResponse, CategoryUpdate, FavoriteCreate,
+    OrderCreate, OrderResponse, OrderStatusUpdate, ProductCreate,
+    ProductResponse, ProductUpdate, ReviewCreate, UserCreate, UserResponse,
+    UserUpdate,
 )
 
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Online Store")
-
-
-def order_data(order):
-    items = []
-    for item in order.items:
-        product = None
-        if item.product:
-            product = ProductResponse.model_validate(item.product)
-        items.append(
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "price": item.price,
-                "subtotal": item.quantity * item.price,
-                "product": product,
-            }
-        )
-    return {
-        "id": order.id,
-        "user_id": order.user_id,
-        "status": order.status,
-        "total_amount": order.total_amount,
-        "created_at": order.created_at,
-        "items": items,
-    }
-
-
-def cart_data(db: Session, user_id: int):
-    items = []
-    total_amount = 0
-    for item in get_cart_items(db, user_id):
-        subtotal = item.quantity * item.product.price
-        total_amount += subtotal
-        items.append(
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "subtotal": subtotal,
-                "product": ProductResponse.model_validate(item.product),
-            }
-        )
-    return {"user_id": user_id, "items": items, "total_amount": total_amount}
 
 
 def get_successful_orders(orders):
@@ -166,16 +123,21 @@ def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
     return {"message": "User deleted"}
 
 
-@app.get("/users/{user_id}/cart/")
+@app.get("/users/{user_id}/cart/", response_model=CartResponse)
 def read_user_cart(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return cart_data(db, user_id)
+    items = get_cart_items(db, user_id)
+    return CartResponse(
+        user_id=user_id,
+        items=items,
+        total_amount=sum(item.subtotal for item in items),
+    )
 
 
-@app.get("/users/{user_id}/orders/")
+@app.get("/users/{user_id}/orders/", response_model=list[OrderResponse])
 def read_user_orders(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return [order_data(order) for order in get_user_orders(db, user_id)]
+    return get_user_orders(db, user_id)
 
 
 @app.get("/users/{user_id}/purchases/")
@@ -186,9 +148,9 @@ def read_purchase_history(user_id: int, db: Session = Depends(get_db)):
     last_order = orders[0] if orders else None
     expensive_order = get_most_expensive_order(successful_orders)
     return {
-        "orders": [order_data(order) for order in orders],
-        "last_order": order_data(last_order) if last_order else None,
-        "most_expensive_order": order_data(expensive_order) if expensive_order else None,
+        "orders": [OrderResponse.model_validate(order) for order in orders],
+        "last_order": OrderResponse.model_validate(last_order) if last_order else None,
+        "most_expensive_order": OrderResponse.model_validate(expensive_order) if expensive_order else None,
         "total_amount": get_total_amount(successful_orders),
         "order_count": len(successful_orders),
         "purchased_products": [
@@ -396,16 +358,22 @@ def add_to_cart_endpoint(item: CartItemCreate, db: Session = Depends(get_db)):
     return add_to_cart(db, item.user_id, product, item.quantity)
 
 
-@app.get("/cart/{user_id}")
+@app.get("/cart/{user_id}", response_model=CartResponse)
 def read_cart(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return cart_data(db, user_id)
+    items = get_cart_items(db, user_id)
+    return CartResponse(
+        user_id=user_id,
+        items=items,
+        total_amount=sum(item.subtotal for item in items),
+    )
 
 
 @app.get("/cart/{user_id}/total/")
 def read_cart_total(user_id: int, db: Session = Depends(get_db)):
     get_existing_user(db, user_id)
-    return {"user_id": user_id, "total_amount": cart_data(db, user_id)["total_amount"]}
+    items = get_cart_items(db, user_id)
+    return {"user_id": user_id, "total_amount": sum(item.subtotal for item in items)}
 
 
 @app.patch("/cart/items/{cart_item_id}")
@@ -443,16 +411,16 @@ def clear_cart_endpoint(user_id: int, db: Session = Depends(get_db)):
     return {"message": "Cart cleared"}
 
 
-@app.post("/orders/create/", status_code=status.HTTP_201_CREATED)
+@app.post("/orders/create/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     get_existing_user(db, order.user_id)
     new_order, error = create_order_from_cart(db, order.user_id)
     if error:
         raise HTTPException(status_code=400, detail=error)
-    return order_data(get_order(db, new_order.id))
+    return get_order(db, new_order.id)
 
 
-@app.get("/orders/")
+@app.get("/orders/", response_model=list[OrderResponse])
 def read_orders(
     status: Literal["new", "paid", "cancelled"] | None = None,
     sort_by: str = "date",
@@ -465,48 +433,48 @@ def read_orders(
         raise HTTPException(status_code=400, detail="status must be new, paid or cancelled")
     if sort_by not in ("date", "amount"):
         raise HTTPException(status_code=400, detail="sort_by must be date or amount")
-    return [order_data(order) for order in get_orders(db, status, sort_by, descending, skip, limit)]
+    return get_orders(db, status, sort_by, descending, skip, limit)
 
 
-@app.get("/orders/new/")
+@app.get("/orders/new/", response_model=list[OrderResponse])
 def read_new_orders(db: Session = Depends(get_db)):
-    return [order_data(order) for order in get_orders(db, status="new")]
+    return get_orders(db, status="new")
 
 
-@app.get("/orders/paid/")
+@app.get("/orders/paid/", response_model=list[OrderResponse])
 def read_paid_orders(db: Session = Depends(get_db)):
-    return [order_data(order) for order in get_orders(db, status="paid")]
+    return get_orders(db, status="paid")
 
 
-@app.get("/orders/cancelled/")
+@app.get("/orders/cancelled/", response_model=list[OrderResponse])
 def read_cancelled_orders(db: Session = Depends(get_db)):
-    return [order_data(order) for order in get_orders(db, status="cancelled")]
+    return get_orders(db, status="cancelled")
 
 
-@app.get("/orders/{order_id}")
+@app.get("/orders/{order_id}", response_model=OrderResponse)
 def read_order(order_id: int, db: Session = Depends(get_db)):
-    return order_data(get_existing_order(db, order_id))
+    return get_existing_order(db, order_id)
 
 
-@app.patch("/orders/{order_id}/status/")
+@app.patch("/orders/{order_id}/status/", response_model=OrderResponse)
 def update_order_status(order_id: int, order_status: OrderStatusUpdate, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
     if order_status.status not in ("new", "paid", "cancelled"):
         raise HTTPException(status_code=400, detail="Status must be new, paid or cancelled")
     if order_status.status == "cancelled":
-        return order_data(cancel_order(db, order))
+        return cancel_order(db, order)
     if order.status == "cancelled":
         raise HTTPException(status_code=400, detail="Cancelled order cannot be changed")
     order.status = order_status.status
     db.commit()
     db.refresh(order)
-    return order_data(order)
+    return order
 
 
-@app.post("/orders/{order_id}/cancel/")
+@app.post("/orders/{order_id}/cancel/", response_model=OrderResponse)
 def cancel_order_endpoint(order_id: int, db: Session = Depends(get_db)):
     order = get_existing_order(db, order_id)
-    return order_data(cancel_order(db, order))
+    return cancel_order(db, order)
 
 
 @app.post("/products/{product_id}/reviews/", status_code=status.HTTP_201_CREATED)

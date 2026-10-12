@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -107,3 +108,34 @@ class ProductResponse(Schema):
     stock: int
     category_id: int
 
+
+class CartItemResponse(Schema):
+    id: int
+    product_id: int
+    quantity: int
+    subtotal: float
+    product: ProductResponse
+
+
+class CartResponse(Schema):
+    user_id: int
+    items: list[CartItemResponse]
+    total_amount: float
+
+
+class OrderItemResponse(Schema):
+    id: int
+    product_id: int
+    quantity: int
+    price: float
+    subtotal: float
+    product: ProductResponse | None
+
+
+class OrderResponse(Schema):
+    id: int
+    user_id: int
+    status: str
+    total_amount: float
+    created_at: datetime
+    items: list[OrderItemResponse]

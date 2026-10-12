@@ -58,6 +58,10 @@ class CartItem(Base):
     user: Mapped["User"] = relationship(back_populates="cart_items")
     product: Mapped["Product"] = relationship(back_populates="cart_items")
 
+    @property
+    def subtotal(self):
+        return self.quantity * self.product.price
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -83,6 +87,10 @@ class OrderItem(Base):
 
     order: Mapped["Order"] = relationship(back_populates="items")
     product: Mapped["Product"] = relationship(back_populates="order_items")
+
+    @property
+    def subtotal(self):
+        return self.quantity * self.price
 
 
 class Review(Base):
